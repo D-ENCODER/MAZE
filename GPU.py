@@ -1,15 +1,17 @@
-import pygame
 import cupy as cp
+import numpy as np
 from random import choice
 import datetime
+from PIL import Image
 
-RES = WIDTH, HEIGHT = 1500, 880
-TILE = 30
+# Constants
+RES = WIDTH, HEIGHT = 2000, 1000
+TILE = 5
 cols, rows = WIDTH // TILE, HEIGHT // TILE
 
-pygame.init()
-sc = pygame.display.set_mode(RES)
-clock = pygame.time.Clock()
+# Colors
+BLACK = (0, 0, 0)  # black
+DARK_ORANGE = (255, 140, 0)  # darkorange
 
 # Grid initialization using CuPy
 walls = cp.ones((rows, cols, 4), dtype=bool)  # 4 walls: top, bottom, left, right
@@ -17,22 +19,6 @@ visited = cp.zeros((rows, cols), dtype=bool)
 
 # Precomputed neighbor offsets for GPU parallelism
 offsets = cp.array([[0, -1], [1, 0], [0, 1], [-1, 0]])  # top, right, bottom, left
-
-def draw_cell(x, y, color):
-    px, py = x * TILE, y * TILE
-    pygame.draw.rect(sc, color, (px, py, TILE, TILE))
-
-def draw_walls(x, y):
-    px, py = x * TILE, y * TILE
-    cell_walls = walls[y, x]
-    if cell_walls[0]:  # top
-        pygame.draw.line(sc, pygame.Color("darkorange"), (px, py), (px + TILE, py), 2)
-    if cell_walls[1]:  # bottom
-        pygame.draw.line(sc, pygame.Color("darkorange"), (px, py + TILE), (px + TILE, py + TILE), 2)
-    if cell_walls[2]:  # left
-        pygame.draw.line(sc, pygame.Color("darkorange"), (px, py), (px, py + TILE), 2)
-    if cell_walls[3]:  # right
-        pygame.draw.line(sc, pygame.Color("darkorange"), (px + TILE, py), (px + TILE, py + TILE), 2)
 
 def remove_walls(current, next):
     cx, cy = current
@@ -66,43 +52,53 @@ def check_neighbors_gpu(x, y):
         return int(x_neighbors[chosen_index]), int(y_neighbors[chosen_index])
     return None
 
-current_cell = (0, 0)
-stack = []
-running = True
-initial = datetime.datetime.now()
+def generate_maze():
+    current_cell = (0, 0)
+    stack = []
+    visited[current_cell[1], current_cell[0]] = True
+    initial = datetime.datetime.now()
 
-visited[current_cell[1], current_cell[0]] = True
+    while len(stack) > 0 or current_cell is not None:
+        # Maze generation logic
+        next_cell = check_neighbors_gpu(*current_cell)
+        if next_cell:
+            stack.append(current_cell)
+            remove_walls(current_cell, next_cell)
+            current_cell = next_cell
+            visited[current_cell[1], current_cell[0]] = True
+        elif stack:
+            current_cell = stack.pop()
+        elif len(stack) == 0:
+            print("Maze completed")
+            difference = datetime.datetime.now() - initial
+            minutes = divmod(difference.total_seconds(), 60)
+            print("Minutes: " + str(minutes[0]) + " Seconds: " + str(minutes[1]))
+            break
 
-while running:
-    sc.fill(pygame.Color("darkslategrey"))
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            exit()
-
-    # Draw the grid
+def maze_to_image():
+    # Convert walls to a binary image representation
+    maze_image = np.ones((rows * TILE, cols * TILE, 3), dtype=np.uint8) * BLACK[0]  # Default black background
     for y in range(rows):
         for x in range(cols):
+            # Draw walls (4 walls)
+            if walls[y, x, 0]:  # top wall
+                maze_image[y * TILE, x * TILE:(x + 1) * TILE] = DARK_ORANGE  # darkorange for top wall
+            if walls[y, x, 1]:  # bottom wall
+                maze_image[(y + 1) * TILE - 1, x * TILE:(x + 1) * TILE] = DARK_ORANGE  # darkorange for bottom wall
+            if walls[y, x, 2]:  # left wall
+                maze_image[y * TILE:(y + 1) * TILE, x * TILE] = DARK_ORANGE  # darkorange for left wall
+            if walls[y, x, 3]:  # right wall
+                maze_image[y * TILE:(y + 1) * TILE, (x + 1) * TILE - 1] = DARK_ORANGE  # darkorange for right wall
+
+            # Mark visited cells with black inside the cell
             if visited[y, x]:
-                draw_cell(x, y, pygame.Color("black"))
-            draw_walls(x, y)
+                maze_image[y * TILE + 1:(y + 1) * TILE - 1, x * TILE + 1:(x + 1) * TILE - 1] = BLACK  # black for visited cells
 
-    # Highlight the current cell
-    draw_cell(current_cell[0], current_cell[1], pygame.Color("saddlebrown"))
+    # Save the maze image
+    img = Image.fromarray(maze_image)
+    img.save('generated_maze_GPU.png')
+    img.show()  # Optionally show the image
 
-    # Maze generation logic
-    next_cell = check_neighbors_gpu(*current_cell)
-    if next_cell:
-        stack.append(current_cell)
-        remove_walls(current_cell, next_cell)
-        current_cell = next_cell
-        visited[current_cell[1], current_cell[0]] = True
-    elif stack:
-        current_cell = stack.pop()
-    elif len(stack) == 0:
-        print("completed")
-        difference = datetime.datetime.now() - initial
-        minutes = divmod(difference.total_seconds(), 60)
-        print("Minutes: " + str(minutes[0]) + " Seconds: " + str(minutes[1]))
-
-    pygame.display.flip()
+if __name__ == "__main__":
+    generate_maze()
+    maze_to_image()
