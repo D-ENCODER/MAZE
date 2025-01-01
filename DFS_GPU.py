@@ -5,8 +5,8 @@ import datetime
 from PIL import Image
 
 # Constants
-RES = WIDTH, HEIGHT = 2000, 1000
-TILE = 5
+RES = WIDTH, HEIGHT = 1000, 1000
+TILE = 100
 cols, rows = WIDTH // TILE, HEIGHT // TILE
 
 # Colors
@@ -93,6 +93,12 @@ def maze_to_image():
             # Mark visited cells with black inside the cell
             if visited[y, x]:
                 maze_image[y * TILE + 1:(y + 1) * TILE - 1, x * TILE + 1:(x + 1) * TILE - 1] = BLACK  # black for visited cells
+
+    # Explicitly draw the frame (outermost border)
+    maze_image[0, :] = DARK_ORANGE  # Top border
+    maze_image[-1, :] = DARK_ORANGE  # Bottom border
+    maze_image[:, 0] = DARK_ORANGE  # Left border
+    maze_image[:, -1] = DARK_ORANGE  # Right border
 
     # Save the maze image
     img = Image.fromarray(maze_image)

@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw
 
 # Constants
 WIDTH, HEIGHT = 2000, 1000
-TILE = 5
+TILE = 60
 cols, rows = WIDTH // TILE, HEIGHT // TILE
 
 def check_cells(x, y):
@@ -30,13 +30,14 @@ class Cell:
         if self.visited:
             draw.rectangle([x, y, x + TILE, y + TILE], fill="black")
 
+        # Draw the top, left, bottom, and right walls if present
         if self.walls["top"]:
             draw.line([x, y, x + TILE, y], fill="darkorange", width=1)
-        if self.walls["bottom"]:
-            draw.line([x + TILE, y + TILE, x, y + TILE], fill="darkorange", width=1)
         if self.walls["left"]:
-            draw.line([x, y + TILE, x, y], fill="darkorange", width=1)
-        if self.walls["right"]:
+            draw.line([x, y, x, y + TILE], fill="darkorange", width=1)
+        if self.walls["bottom"] or self.y == rows - 1:  # Last row
+            draw.line([x, y + TILE, x + TILE, y + TILE], fill="darkorange", width=1)
+        if self.walls["right"] or self.x == cols - 1:  # Last column
             draw.line([x + TILE, y, x + TILE, y + TILE], fill="darkorange", width=1)
 
     def check_neighbors(self):
@@ -104,14 +105,17 @@ def generate_maze():
 
 # Function to generate an image from the maze
 def maze_to_image():
-    # Create a blank image with white background
+    # Create a blank image with a grey background
     img = Image.new("RGB", (WIDTH, HEIGHT), "grey")
     draw = ImageDraw.Draw(img)
 
-    # Draw the cells and walls
+    # Draw the cells and their walls
     for cell in grid_cells:
         cell.draw_head_cell(draw)
         cell.draw(draw)
+
+    # Explicitly draw the border (frame) around the entire maze
+    draw.rectangle([0, 0, WIDTH - 1, HEIGHT - 1], outline="darkorange", width=1)
 
     # Save the final maze image
     img.save('generated_maze_CPU.png')
